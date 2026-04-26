@@ -37,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.auto_fix_high), label: '具现化'),
-          BottomNavigationBarItem(icon: Icon(Icons.chronogear), label: '时间回溯'),
+          BottomNavigationBarItem(icon: Icon(Icons.loop), label: '时间回溯'),
           BottomNavigationBarItem(icon: Icon(Icons.history), label: '希卡图鉴'),
           BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings), label: '控制台'),
         ],

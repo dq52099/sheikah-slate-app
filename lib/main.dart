@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/providers.dart';
 import 'core/botw_theme.dart';
-import 'features/materializer/materializer_screen.dart';
+import 'features/auth/login_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
   runApp(
-    const ProviderScope(
-      child: BotwApp(),
+    ProviderScope(
+      overrides: [
+        sharedPrefsProvider.overrideWithValue(prefs),
+      ],
+      child: const BotwApp(),
     ),
   );
 }
@@ -17,10 +24,10 @@ class BotwApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Sheikah Slate: Image Link',
+      title: '希卡之石',
       debugShowCheckedModeBanner: false,
       theme: BotwTheme.slateTheme,
-      home: const MaterializerScreen(),
+      home: const LoginScreen(),
     );
   }
 }

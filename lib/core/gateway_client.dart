@@ -1,55 +1,81 @@
 import 'package:dio/dio.dart';
+import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:cookie_jar/cookie_jar.dart';
+import 'package:path_provider/path_provider.dart';
 
 class GatewayClient {
-  final Dio _dio;
+  late Dio _dio;
+  String baseUrl = '';
+  PersistCookieJar? cookieJar;
 
-  GatewayClient({required String baseUrl, String? apiKey})
-      : _dio = Dio(BaseOptions(
-          baseUrl: baseUrl,
-          headers: {
-            if (apiKey != null) 'Authorization': 'Bearer $apiKey',
-            'Content-Type': 'application/json',
-          },
-        ));
-
-  /// Maps to POST /v1/images/generations
-  Future<List<String>> materialize(String runes, int count, String size) async {
-    final response = await _dio.post(
-      '/v1/images/generations',
-      data: {
-        'prompt': runes,
-        'n': count,
-        'size': size,
-        'response_format': 'url',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final List data = response.data['data'] ?? [];
-      return data.map((item) => item['url'] as String).toList();
-    } else {
-      throw Exception('Failed to materialize images: ${response.statusMessage}');
-    }
+  GatewayClient() {
+    _dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(minutes: 5),
+      contentType: 'application/json',
+    ));
   }
 
-  /// Maps to POST /v1/改图
-  Future<List<String>> recall(String runes, String imageBase64, int count, String size) async {
-    final response = await _dio.post(
-      '/v1/改图',
-      data: {
-        'prompt': runes,
-        'image_base64': imageBase64,
-        'n': count,
-        'size': size,
-        'response_format': 'url',
-      },
-    );
+  Future<void> init(String url) async {
+    baseUrl = url;
+    _dio.options.baseUrl = url;
+    final dir = await getApplicationDocumentsDirectory();
+    cookieJar = PersistCookieJar(storage: FileStorage('${dir.path}/.cookies/'));
+    _dio.interceptors.add(CookieManager(cookieJar!));
+  }
 
-    if (response.statusCode == 200) {
-      final List data = response.data['data'] ?? [];
-      return data.map((item) => item['url'] as String).toList();
-    } else {
-      throw Exception('Failed to recall images: ${response.statusMessage}');
-    }
+  Future<void> updateBaseUrl(String url) async {
+    baseUrl = url;
+    _dio.options.baseUrl = url;
+  }
+
+  Future<Map<String, dynamic>> login(String username, String password) async {
+    final res = await _dio.post('/api/auth/login', data: {
+      'username': username,
+      'password': password,
+    });
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> checkAuth() async {
+    final res = await _dio.get('/api/auth/me');
+    return res.data;
+  }
+
+  Future<void> logout() async {
+    await _dio.post('/api/auth/logout');
+    await cookieJar?.deleteAll();
+  }
+
+  Future<Map<String, dynamic>> materialize(String runes, int count, String size, String quality, String background) async {
+    final res = await _dio.post('/api/images/generate', data: {
+      'prompt': runes,
+      'n': count,
+      'size': size,
+      'quality': quality,
+      'background': background,
+      'response_format': 'url',
+    });
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> recall(String runes, String imagePath, int count, String size) async {
+    final formData = FormData.fromMap({
+      'prompt': runes,
+      'n': count,
+      'size': size,
+      'response_format': 'url',
+      'image': await MultipartFile.fromFile(imagePath),
+    });
+    final res = await _dio.post('/api/images/edit', data: formData);
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> getHistory(int page) async {
+    final res = await _dio.get('/api/images/history', queryParameters: {
+      'page': page,
+      'page_size': 20,
+    });
+    return res.data;
   }
 }

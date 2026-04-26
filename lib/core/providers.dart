@@ -1,42 +1,55 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'gateway_client.dart';
 
-/// Provider for the GatewayClient to interact with the backend.
-final gatewayClientProvider = Provider<GatewayClient>((ref) {
-  return GatewayClient(
-    baseUrl: 'http://127.0.0.1:8324',
-    apiKey: 'placeholder-api-key',
-  );
+final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
+  throw UnimplementedError();
 });
 
-/// Provider for "Energy Cells" (mock quota), initially 8.
-final energyCellsProvider = StateProvider<int>((ref) => 8);
+final gatewayClientProvider = Provider<GatewayClient>((ref) {
+  return GatewayClient();
+});
 
-/// Notifier for image generation state.
-class MaterializeNotifier extends AsyncNotifier<List<String>> {
+final authStateProvider = StateProvider<Map<String, dynamic>?>((ref) => null);
+
+final energyProvider = StateProvider<Map<String, dynamic>>((ref) => {
+  'generate': {'remaining': 0, 'total': 0, 'used': 0},
+  'edit': {'remaining': 0, 'total': 0, 'used': 0},
+});
+
+final materializerProvider = AsyncNotifierProvider<MaterializerNotifier, List<dynamic>>(() {
+  return MaterializerNotifier();
+});
+
+class MaterializerNotifier extends AsyncNotifier<List<dynamic>> {
   @override
-  Future<List<String>> build() async {
-    // Initial state is an empty list of URLs.
-    return [];
+  Future<List<dynamic>> build() async => [];
+
+  Future<void> materialize(String runes, int count, String size, String quality, String background) async {
+    state = const AsyncValue.loading();
+    try {
+      final client = ref.read(gatewayClientProvider);
+      final res = await client.materialize(runes, count, size, quality, background);
+      ref.read(energyProvider.notifier).state = res['quota_summary'];
+      state = AsyncValue.data(res['data']);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
   }
 
-  /// Calls GatewayClient.materialize and updates state.
-  /// Decrements energy cells upon success.
-  Future<void> materialize(String runes, int count, String size) async {
+  Future<void> recall(String runes, String imagePath, int count, String size) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
+    try {
       final client = ref.read(gatewayClientProvider);
-      final urls = await client.materialize(runes, count, size);
-      
-      // Decrement energy cells on success
-      ref.read(energyCellsProvider.notifier).update((current) => current > 0 ? current - 1 : 0);
-      
-      return urls;
-    });
+      final res = await client.recall(runes, imagePath, count, size);
+      ref.read(energyProvider.notifier).state = res['quota_summary'];
+      state = AsyncValue.data(res['data']);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  void clear() {
+    state = const AsyncValue.data([]);
   }
 }
-
-/// AsyncNotifierProvider for materializing images.
-final materializeProvider = AsyncNotifierProvider<MaterializeNotifier, List<String>>(() {
-  return MaterializeNotifier();
-});
